@@ -9,8 +9,8 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: CupertinoScaffold(
-          body: MyHomePage(title: 'Flutter Demo Home Page')),
+      home:
+          CupertinoScaffold(body: MyHomePage(title: 'Flutter Demo Home Page')),
     );
   }
 }
@@ -59,23 +59,44 @@ class LanguageBottomSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CupertinoPageScaffold(
-        navigationBar:
-            CupertinoNavigationBar(leading: Container(), middle: Text('Text')),
-        child: ListView(
-          shrinkWrap: true,
-          controller: scrollController,
-          children: ListTile.divideTiles(
-            context: context,
-            tiles: List.generate(
-                100,
-                (index) => ListTile(
-                      title: Text('Item'),
-                      onTap: () {
-                        Navigator.of(context).maybePop();
-                      },
-                    )),
-          ).toList(),
-        ));
+    return Navigator(
+        onGenerateRoute: (_) => MaterialPageRoute(
+            builder: (context) => CupertinoScaffold(
+                  body: Builder(
+                    builder: (context) => CupertinoPageScaffold(
+                      navigationBar: CupertinoNavigationBar(
+                          leading: Container(), middle: Text('Modal Page')),
+                      child: SafeArea(
+                        child: ListView(
+                          shrinkWrap: true,
+                          controller: scrollController,
+                          children: ListTile.divideTiles(
+                            context: context,
+                            tiles: List.generate(
+                                100,
+                                (index) => ListTile(
+                                      title: Text('Item'),
+                                      onTap: () {
+                                        Navigator.of(context).push(
+                                            MaterialPageRoute(
+                                                builder: (context) =>
+                                                    CupertinoPageScaffold(
+                                                        navigationBar:
+                                                            CupertinoNavigationBar(
+                                                          middle:
+                                                              Text('New Page'),
+                                                        ),
+                                                        child: Stack(
+                                                          fit: StackFit.expand,
+                                                          children: <Widget>[],
+                                                        ))));
+                                      },
+                                    )),
+                          ).toList(),
+                        ),
+                      ),
+                    ),
+                  ),
+                )));
   }
 }
