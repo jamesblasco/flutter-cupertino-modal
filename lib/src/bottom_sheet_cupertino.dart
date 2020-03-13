@@ -13,11 +13,10 @@ import 'package:flutter/widgets.dart';
 const Duration _bottomSheetDuration = Duration(milliseconds: 400);
 const double _minFlingVelocity = 500.0;
 const double _closeProgressThreshold = 0.5;
+const double _behind_bottom_visible_height = 10;
 
 typedef ScrollWidgetBuilder = Widget Function(
     BuildContext context, ScrollController controller);
-
-
 
 class _CupertinoBottomSheetContainer extends StatelessWidget {
   final Widget child;
@@ -31,7 +30,7 @@ class _CupertinoBottomSheetContainer extends StatelessWidget {
         left: false,
         right: false,
         child: Container(
-            padding: EdgeInsets.only(top: 10),
+            padding: EdgeInsets.only(top: _behind_bottom_visible_height),
             child: ClipRRect(
                 borderRadius: BorderRadius.only(
                     topLeft: Radius.circular(12),
@@ -47,9 +46,7 @@ class _CupertinoBottomSheetContainer extends StatelessWidget {
                         ]),
                     width: double.infinity,
                     child: MediaQuery.removePadding(
-                        context: context,
-                        removeTop: true,
-                        child: child)))));
+                        context: context, removeTop: true, child: child)))));
   }
 }
 
@@ -114,7 +111,7 @@ class CupertinoBottomSheet extends StatefulWidget {
   /// A bottom sheet might be prevented from closing (e.g., by user
   /// interaction) even after this callback is called. For this reason, this
   /// callback might be call multiple times for a given bottom sheet.
-  final VoidCallback onClosing;
+  final Future<bool> Function() onClosing;
 
   /// A builder for the contents of the sheet.
   ///
@@ -214,20 +211,38 @@ class _CupertinoBottomSheetState extends State<CupertinoBottomSheet> {
     if (_dismissUnderway) return;
     if (velocity > _minFlingVelocity) {
       final double flingVelocity = -velocity / _childHeight;
-      if (widget.animationController.value > 0.0) {
-        widget.animationController
-            .fling(velocity: flingVelocity)
-            .then((value) => _extent._currentExtent.value = 1);
-      }
-      if (flingVelocity < 0.0) {
-        widget.onClosing();
-      }
+      widget.animationController
+          .forward()
+          .then((value) => _extent._currentExtent.value = 1);
+      widget.onClosing().then((shouldClose) {
+        if (!shouldClose) {
+          widget.animationController
+              .forward()
+              .then((value) => _extent._currentExtent.value = 1);
+        }
+
+        if (widget.animationController.value > 0.0) {
+          widget.animationController
+              .fling(velocity: flingVelocity)
+              .then((value) => _extent._currentExtent.value = 1);
+        }
+        if (flingVelocity < 0.0) {}
+      });
     } else if (widget.animationController.value < _closeProgressThreshold) {
-      if (widget.animationController.value > 0.0)
-        widget.animationController
-            .fling(velocity: -1.0)
-            .then((value) => _extent._currentExtent.value = 1);
-      widget.onClosing();
+      widget.animationController
+          .forward()
+          .then((value) => _extent._currentExtent.value = 1);
+      widget.onClosing().then((shouldClose) {
+        if (widget.animationController.value > 0.0)
+          widget.animationController
+              .fling(velocity: -1.0)
+              .then((value) => _extent._currentExtent.value = 1);
+        if (!shouldClose) {
+          widget.animationController
+              .forward()
+              .then((value) => _extent._currentExtent.value = 1);
+        }
+      });
     } else {
       widget.animationController
           .forward()
@@ -285,8 +300,6 @@ class _CupertinoBottomSheetState extends State<CupertinoBottomSheet> {
             ));
   }
 }
-
-// PERSISTENT BOTTOM SHEETS
 
 // See scaffold.dart
 
@@ -346,7 +359,6 @@ class _ModalBottomSheet<T> extends StatefulWidget {
   _ModalBottomSheetState<T> createState() => _ModalBottomSheetState<T>();
 }
 
-
 class _ModalBottomSheetState<T> extends State<_ModalBottomSheet<T>> {
   String _getRouteLabel(MaterialLocalizations localizations) {
     switch (Theme.of(context).platform) {
@@ -372,10 +384,10 @@ class _ModalBottomSheetState<T> extends State<_ModalBottomSheet<T>> {
     super.dispose();
   }
 
-
   updateController() {
     widget.secondAnimationController?.value = widget.route.animation.value;
   }
+
   @override
   Widget build(BuildContext context) {
     assert(debugCheckHasMediaQuery(context));
@@ -385,7 +397,7 @@ class _ModalBottomSheetState<T> extends State<_ModalBottomSheet<T>> {
         MaterialLocalizations.of(context);
     final String routeLabel = _getRouteLabel(localizations);
 
-    final Animation<double> curvedAnimation =  CurvedAnimation(
+    final Animation<double> curvedAnimation = CurvedAnimation(
       parent: widget.route.animation,
       curve: Curves.easeOut,
     );
@@ -393,8 +405,7 @@ class _ModalBottomSheetState<T> extends State<_ModalBottomSheet<T>> {
     return AnimatedBuilder(
       animation: curvedAnimation,
       builder: (BuildContext context, Widget child) {
-
-         // Disable the initial animation when accessible navigation is on so
+        // Disable the initial animation when accessible navigation is on so
         // that the semantics are added to the tree at the correct time.
         return Semantics(
           scopesRoute: true,
@@ -403,14 +414,20 @@ class _ModalBottomSheetState<T> extends State<_ModalBottomSheet<T>> {
           explicitChildNodes: true,
           child: ClipRect(
             child: CustomSingleChildLayout(
-              delegate:
-                  _ModalBottomSheetLayout(curvedAnimation.value, widget.expanded),
+              delegate: _ModalBottomSheetLayout(
+                  curvedAnimation.value, widget.expanded),
               child: CupertinoBottomSheet(
                 animationController: widget.route._animationController,
-                onClosing: () {
+                onClosing: () async {
                   if (widget.route.isCurrent) {
-                    Navigator.pop(context);
+                    bool shouldClose = (await widget.route.willPop() !=
+                        RoutePopDisposition.doNotPop);
+                    if (widget.route.isCurrent) {
+                      if (shouldClose) Navigator.of(context).pop();
+                    }
+                    return shouldClose;
                   }
+                  return false;
                 },
                 builder: widget.route.builder,
                 backgroundColor: widget.backgroundColor,
@@ -510,22 +527,36 @@ class _ModalBottomSheetRoute<T> extends PopupRoute<T> {
     return bottomSheet;
   }
 
- /* @override
+
+  @override
+  bool canTransitionTo(TransitionRoute<dynamic> nextRoute) => nextRoute is _ModalBottomSheetRoute;
+
+  @override
+  bool canTransitionFrom(TransitionRoute<dynamic> previousRoute) => previousRoute is _ModalBottomSheetRoute;
+
+
+  @override
   Widget buildTransitions(
     BuildContext context,
     Animation<double> animation,
     Animation<double> secondaryAnimation,
     Widget child,
   ) {
+    final paddingTop = MediaQuery.of(context).padding.top;
+    final distanceWithScale = (paddingTop + _behind_bottom_visible_height) * 0.9;
     return AnimatedBuilder(
-      builder: (context, child) => Transform.scale(
-        scale: secondaryAnimation.value,
-        child: child,
+      builder: (context, child) => Transform.translate(
+        offset: Offset(0, secondaryAnimation.value * (paddingTop - distanceWithScale)),
+        child: Transform.scale(
+          scale: 1 - secondaryAnimation.value / 10,
+          child: child,
+          alignment: Alignment.topCenter,
+        ),
       ),
       child: child,
       animation: secondaryAnimation,
     );
-  }*/
+  }
 }
 
 /// Shows a modal material design bottom sheet.

@@ -66,10 +66,12 @@ class _CupertinoScaffoldState extends State<CupertinoScaffold>
   @override
   Widget build(BuildContext context) {
     double startRoundCorner = 0;
+    final paddingTop = MediaQuery.of(context).padding.top;
     if (defaultTargetPlatform == TargetPlatform.iOS &&
-        MediaQuery.of(context).padding.top > 20)
+        paddingTop > 20)
       startRoundCorner =
           38.5; //https://kylebashour.com/posts/finding-the-real-iphone-x-corner-radius
+
     final  curvedAnimation =  CurvedAnimation(
     parent: animationController,
     curve: Curves.easeOut,
@@ -83,10 +85,11 @@ class _CupertinoScaffoldState extends State<CupertinoScaffold>
                     Container(
                       color: Colors.black,
                     ),
-                    Transform.scale(
-                      child: Transform.translate(
-                        offset: Offset(0, curvedAnimation.value * 4),
-                        child: ClipRRect(
+                    Transform.translate(
+                      offset: Offset(0,  curvedAnimation.value * paddingTop),
+                      child: Transform.scale(
+                        scale: 1 - curvedAnimation.value / 10,
+                      child:  ClipRRect(
                             borderRadius: BorderRadius.only(
                                 topLeft: Radius.circular(
                                     (1 - curvedAnimation.value) *
@@ -97,8 +100,8 @@ class _CupertinoScaffoldState extends State<CupertinoScaffold>
                                             startRoundCorner +
                                         curvedAnimation.value * 12)),
                             child: child),
+                        alignment: Alignment.topCenter,
                       ),
-                      scale: 1 - curvedAnimation.value / 10,
                     )
                   ],
                 ),
